@@ -14,6 +14,7 @@ from flask import (
     redirect, 
     url_for )
 from werkzeug.utils import secure_filename
+from bson import ObjectId
 
 
 
@@ -23,6 +24,7 @@ load_dotenv(dotenv_path)
 MONGODB_URI = os.environ.get("MONGODB_URI")
 DB_NAME =  os.environ.get("DB_NAME")
 SECRET_KEY = os.environ.get("SECRET_KEY")
+TOKEN_KEY = os.environ.get("TOKEN_KEY")
 
 client = MongoClient(MONGODB_URI)
 
@@ -30,13 +32,10 @@ db = client[DB_NAME]
 
 app = Flask(__name__)
 
-app.config['TEMPLATES_AUTO_RELOAD']=True
-app.config['UPLOAD_FOLDER']='./static/profile_pics'
+# app.config['TEMPLATES_AUTO_RELOAD']=True
+app.config['UPLOAD_FOLDER']='./static/gunung_pics'
 
-
-TOKEN_KEY = 'mytoken'
-
-@app.route('/', methods=['GET'])
+@app.route('/', methods=['GET']) #UNTUK HALAMAN INDEX
 def home():
     token_receive = request.cookies.get(TOKEN_KEY)
     try:
@@ -45,57 +44,35 @@ def home():
             SECRET_KEY,
             algorithms=['HS256']
         )
-        user_info = db.users.find_one({'username' :payload.get('id')})
-        return render_template('index.html', user_info=user_info)
+        user_info = db.users.find_one({'useremail' :payload.get('useremail')})
+        user_role = user_info['role']
+        return render_template('index.html', user_role = user_role)
     except jwt.ExpiredSignatureError:
         msg = 'Your token has expired'
-        return redirect(url_for('login',msg = msg))
+        return redirect(url_for('halaman_login',msg = msg))
     except jwt.exceptions.DecodeError:
         msg = 'There was a problem logging you in'
-        return redirect(url_for('login',msg = msg))
+        return redirect(url_for('halaman_login',msg = msg))
 
-@app.route('/login', methods=['GET'])
-def login():
+@app.route('/halaman_login', methods=['GET']) #UNTUK HALAMAN LOGIN
+def halaman_login():
     msg = request.args.get('msg')
-    return render_template('/login.html', msg =msg)
-
-@app.route('/user/<username>', methods=['GET'])
-def user(username):
-    token_receive = request.cookies.get(TOKEN_KEY)
-    try:
-        payload = jwt.decode(
-            token_receive,
-            SECRET_KEY,
-            algorithms=['HS256']
-        )
-        status = username == payload.get('id')
-        user_info = db.users.find_one(
-            {'username' : username},
-            {'_id' : False}
-        )
-        return render_template(
-            'user.html',
-             user_info = user_info,
-              status = status
-            )
-    except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
-        return redirect(url_for('home'))
+    return render_template('login.html', msg =msg)
     
-@app.route("/sign_in", methods=["POST"])
+@app.route("/sign_in", methods=["POST"]) #UNTUK HALAMAN LOGIN
 def sign_in():
-    # Sign in
-    username_receive = request.form["username_give"]
+    useremail_receive = request.form["useremail_give"]
     password_receive = request.form["password_give"]
     pw_hash = hashlib.sha256(password_receive.encode("utf-8")).hexdigest()
     result = db.users.find_one(
         {
-            "username": username_receive,
+            "useremail": useremail_receive,
             "password": pw_hash,
         }
     )
     if result:
         payload = {
-            "id": username_receive,
+            "useremail": useremail_receive,
             # the token will be valid for 24 hours
             "exp": datetime.utcnow() + timedelta(seconds=60 * 60 * 24),
         }
@@ -107,40 +84,42 @@ def sign_in():
                 "token": token,
             }
         )
-    # Let's also handle the case where the id and
-    # password combination cannot be found
     else:
         return jsonify(
             {
                 "result": "fail",
-                "msg": "We could not find a user with that id/password combination",
+                "msg": "Email atau Password anda tidak sesuai",
             }
         )
 
-@app.route("/sign_up/save", methods=["POST"])
+@app.route('/halaman_signup', methods=['GET']) #UNTUK HALAMAN SIGNUP
+def halaman_signup():
+    return render_template('signup.html')
+
+@app.route("/sign_up/save", methods=["POST"]) #UNTUK HALAMAN SIGNUP
 def sign_up():
+    useremail_receive = request.form['useremail_give']
     username_receive = request.form['username_give']
     password_receive = request.form['password_give']
     password_hash = hashlib.sha256(password_receive.encode('utf-8')).hexdigest()
     doc = {
-        "username": username_receive,                               # id
-        "password": password_hash,                                  # password
-        "profile_name": username_receive,                           # user's name is set to their id by default
-        "profile_pic": "",                                          # profile image file name
-        "profile_pic_real": "profile_pics/profile_placeholder.png", # a default profile image
-        "profile_info": ""                                          # a profile description
+        "useremail" : useremail_receive,
+        "username"  : username_receive,
+        "password"  : password_hash,
+        "role"      : "user"
     }
     db.users.insert_one(doc)
     return jsonify({'result': 'success'})
 
-@app.route('/sign_up/check_dup', methods=['POST'])
+@app.route('/sign_up/check_email', methods=['POST'])  #UNTUK HALAMAN SIGNUP
 def check_dup():
-    username_receive = request.form['username_give']
-    exists = bool(db.users.find_one({"username": username_receive}))
+    useremail_receive = request.form['useremail_give']
+    exists = bool(db.users.find_one({"useremail": useremail_receive}))
     return jsonify({'result': 'success', 'exists': exists})
 
-@app.route('/update_profile', methods=['POST'])
-def update_profile():
+
+@app.route('/halaman_tambah', methods=['GET']) #UNTUK HALAMAN TAMBAH
+def halaman_tambah():
     token_receive = request.cookies.get(TOKEN_KEY)
     try:
         payload = jwt.decode(
@@ -148,39 +127,11 @@ def update_profile():
             SECRET_KEY,
             algorithms=['HS256']
         )
-        username = payload.get('id')
-
-        name_receive = request.form.get('name_give')
-        about_receive = request.form.get('about_give')
-
-        new_doc = {
-            'profile_name' : name_receive,
-            'profile_info' : about_receive
-        }
-
-        if 'file_give' in request.files:
-            file = request.files.get('file_give')
-            filename = secure_filename(file.filename)
-            extension = filename.split('.')[-1]
-            file_path = f'profile_pics/{username}.{extension}'
-            file.save('./static/'+file_path)
-            new_doc['profile_pic'] = filename
-            new_doc['profile_pic_real'] = file_path
-
-        db.users.update_one(
-            {'username': username},
-            {'$set' : new_doc}
-        )
-
-        return jsonify({
-            'result' : 'success',
-            'msg' : 'your profile has been updated'
-        })
+        return render_template('tambah.html')
     except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
         return redirect(url_for('home'))
-    
 
-@app.route('/posting', methods=['POST'])
+@app.route('/tambah_gunung', methods=['POST']) #UNTUK HALAMAN TAMBAH
 def posting():
     token_receive = request.cookies.get(TOKEN_KEY)
     try:
@@ -189,26 +140,47 @@ def posting():
             SECRET_KEY,
             algorithms=['HS256']
         )
-        user_info = db.users.find_one({'username' : payload.get('id')})
-        comment_receive = request.form.get('comment_give')
-        date_receive = request.form.get('date_give')
+        #di browser client, buat kondisi input tidak boleh kosong, termasuk input choose file
+        name_receive = request.form.get('name_give')
+        provinsi_receive = request.form.get('provinsi_give')
+        ketinggian_receive = request.form.get('ketinggian_give')
+        gmaps_receive = request.form.get('gmaps_give')
+        iframe_receive = request.form.get('iframe_give')
+        deskripsiUmum_receive = request.form.get('deskripsiUmum_give')
+        deskripsiPerlengkapan_receive = request.form.get('deskripsiPerlengkapan_give')
+        deskripsiPeringatan_receive = request.form.get('deskripsiPeringatan_give')
+
+        if 'file_give' in request.files:
+            file = request.files.get('file_give')
+            file_name = secure_filename(file.filename)
+            picture_name= file_name.split(".")[0]
+            ekstensi = file_name.split(".")[1]
+            picture_name = f"{picture_name}[{name_receive}].{ekstensi}"
+            file_path = f'./static/gunung_pics/{picture_name}'
+            file.save(file_path)
+        else: picture_name =f"default.jpg"
+
         doc = {
-            'username' : user_info.get('username'),
-            'profile_name' : user_info.get('profile_name'),
-            'profile_pic_real' : user_info.get('profile_pic_real'),
-            'comment' : comment_receive,
-            'date' : date_receive
+            'nama_gunung' : name_receive,
+            'provinsi_gunung' : provinsi_receive,
+            'ketinggian_gunung' : ketinggian_receive,
+            'gambar_gunung' : picture_name,
+            'link_gmaps' : gmaps_receive,
+            'link_iframe' : iframe_receive,
+            'deskripsi_umum' : deskripsiUmum_receive,
+            'deskripsi_perlengkapan' : deskripsiPerlengkapan_receive,
+            'deskripsi_peringatan' : deskripsiPeringatan_receive,
         }
-        db.posts.insert_one(doc)
+        db.gunung.insert_one(doc)
         return jsonify({
             'result' : 'success',
-            'msg' : 'Posting Successful!'
+            'msg' : 'Konten baru telah ditambahkan!'
         })
     except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
         return redirect(url_for('home'))
     
-@app.route('/get_posts', methods=['GET'])
-def get_post():
+@app.route('/getListGunung', methods=['GET']) #UNTUK HALAMAN INDEX DAN SEARCH DI GAGAL CARI
+def get_gunung():
     token_receive = request.cookies.get(TOKEN_KEY)
     try:
         payload = jwt.decode(
@@ -216,56 +188,275 @@ def get_post():
             SECRET_KEY,
             algorithms=['HS256']
         )
-        username_receive = request.args.get('username_give')
-        if username_receive == '':
-            posts = list(db.posts.find({}).sort('date', -1).limit(20))
+
+        kategori = request.args.get('kategori')
+        print(kategori)
+        if kategori== 'default':
+            print('default')
+            list_gunung = list(db.gunung.find({}))
+            for gunung in list_gunung:
+                gunung['_id'] = str(gunung['_id'])
+                gunung['likes'] = db.likes.count_documents({
+                    'id_gunung' : gunung['_id']
+                })
+            return jsonify({'result':'success', 'list_gunung' : list_gunung})
+        
+        elif kategori == 'favorit':
+            print('favorit')
+            list_gunung = list(db.gunung.find({}))
+            for gunung in list_gunung:
+                gunung['_id'] = str(gunung['_id'])
+                gunung['likes'] = db.likes.count_documents({
+                    'id_gunung' : gunung['_id']
+                })
+            #sorted untuk membuat list favorit berdasarkan likes terbanyak
+            list_favorit = sorted(list_gunung, key=lambda x: x['likes'], reverse=True)
+            #filter dokumen yang memiliki 0 likes
+            filtered_list = [gunung for gunung in list_favorit if gunung["likes"] != 0]
+            if len(filtered_list) == 0:
+                return jsonify({'result':'list_kosong'})
+
+            return jsonify({'result':'success', 'list_gunung' : filtered_list})
+        
         else :
-            posts = list(db.posts.find({'username' : username_receive}).sort('date', -1).limit(20))
-            
-        for post in posts:
-            post['_id'] = str(post['_id'])
-            post['count_heart'] = db.likes.count_documents({
-                'post_id' : post['_id'],
-                'type' : 'heart'
-            })
+            keyword = kategori
+            print('search')
+            list_search1 = list(db.gunung.find({'nama_gunung' : {'$regex' : keyword ,'$options' : 'i'}}))
+            list_search2 = list(db.gunung.find({'provinsi_gunung' : {'$regex' : keyword ,'$options' : 'i'}}))
 
-            post['count_star'] = db.likes.count_documents({
-                'post_id' : post['_id'],
-                'type' : 'star'
-            })
+            if list_search1 : 
+                hasil_pencarian = list_search1
+                for item in hasil_pencarian: 
+                    item['_id'] = str(item['_id'])
+                    item['likes'] = db.likes.count_documents({
+                        'id_gunung' : item['_id']
+                    })
+                return jsonify({'result':'success', 'list_gunung' : hasil_pencarian})
+            elif list_search2 : 
+                hasil_pencarian = list_search2
+                for item in hasil_pencarian: 
+                    item['_id'] = str(item['_id'])
+                    item['likes'] = db.likes.count_documents({
+                        'id_gunung' : item['_id']
+                    })
+                return jsonify({'result':'success', 'list_gunung' : hasil_pencarian})
+            else : 
+                return jsonify({'result':'gagal_cari'})
 
-            post['count_thumbsup'] = db.likes.count_documents({
-                'post_id' : post['_id'],
-                'type' : 'thumbsup'
-            })
-
-            post['heart_by_me'] = bool(db.likes.find_one({
-                'post_id' : post['_id'],
-                'type' : 'heart',
-                'username' : payload.get('id')
-            }))
-
-            post['star_by_me'] = bool(db.likes.find_one({
-                'post_id' : post['_id'],
-                'type' : 'star',
-                'username' : payload.get('id')
-            }))
-
-            post['thumbsup_by_me'] = bool(db.likes.find_one({
-                'post_id' : post['_id'],
-                'type' : 'thumbsup',
-                'username' : payload.get('id')
-            }))
-        return jsonify({
-            'result' : 'success',
-            'msg' : 'Successfully fetched all posts',
-            'posts' : posts
-        })
     except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
         return redirect(url_for('home'))
 
+@app.route('/halaman_gagal', methods=['GET'])
+def gagal_cari():
+    token_receive = request.cookies.get(TOKEN_KEY)
+    try:
+        payload = jwt.decode(
+            token_receive,
+            SECRET_KEY,
+            algorithms=['HS256']
+        )
+        return render_template('gagal_cari.html')
+        
+    except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
+        return redirect(url_for('home'))
+    
+@app.route('/search', methods=['GET'])
+def search():
+    token_receive = request.cookies.get(TOKEN_KEY)
+    try:
+        payload = jwt.decode(
+            token_receive,
+            SECRET_KEY,
+            algorithms=['HS256']
+        )
+        keyword = request.args.get('keyword')
+        user_info = db.users.find_one({'useremail' :payload.get('useremail')})
+        user_role = user_info['role']
+        return render_template('index.html', user_role = user_role, keyword = keyword)
+        
+    except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
+        return redirect(url_for('home'))
 
-@app.route('/update_like', methods=['POST'])
+@app.route('/halaman_edit/<id_gunung>', methods=['GET']) #UNTUK HALAMAN EDIT, id gunung dibawa dengan dinamic route
+def halaman_edit(id_gunung):
+    token_receive = request.cookies.get(TOKEN_KEY)
+    try:
+        payload = jwt.decode(
+            token_receive,
+            SECRET_KEY,
+            algorithms=['HS256']
+        )
+        id_gunung = ObjectId(id_gunung)
+        info_gunung = db.gunung.find_one({'_id' : id_gunung})
+        info_gunung["_id"] = str(info_gunung["_id"])
+        return render_template('edit.html', info_gunung=info_gunung)
+    
+    except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
+        return redirect(url_for('home'))
+
+@app.route('/edit_gunung', methods=['POST'])  #UNTUK HALAMAN EDIT
+def edit():
+    token_receive = request.cookies.get(TOKEN_KEY)
+    try:
+        payload = jwt.decode(
+            token_receive,
+            SECRET_KEY,
+            algorithms=['HS256']
+        )
+
+        id_gunung = request.form.get('id_gunung_give')
+        id_gunung = ObjectId(id_gunung)
+
+        name_receive = request.form.get('name_give')
+        provinsi_receive = request.form.get('provinsi_give')
+        ketinggian_receive = request.form.get('ketinggian_give')
+        gmaps_receive = request.form.get('gmaps_give')
+        iframe_receive = request.form.get('iframe_give')
+        deskripsiUmum_receive = request.form.get('deskripsiUmum_give')
+        deskripsiPerlengkapan_receive = request.form.get('deskripsiPerlengkapan_give')
+        deskripsiPeringatan_receive = request.form.get('deskripsiPeringatan_give')
+
+        if 'file_give' in request.files:
+            data_lama = db.gunung.find_one({'_id' : id_gunung})
+            gambar_lama = data_lama['gambar_gunung']
+            if gambar_lama != "default.jpg" :
+                os.remove(f'./static/gunung_pics/{gambar_lama}') #hapus gambar lama di server biar ga jadi sampah
+
+            file = request.files.get('file_give')
+            file_name = secure_filename(file.filename)
+            picture_name= file_name.split(".")[0]
+            ekstensi = file_name.split(".")[1]
+            picture_name = f"{picture_name}[{name_receive}].{ekstensi}"
+            file_path = f'./static/gunung_pics/{picture_name}'
+            file.save(file_path)
+
+            doc = {
+                'nama_gunung' : name_receive,
+                'provinsi_gunung' : provinsi_receive,
+                'ketinggian_gunung' : ketinggian_receive,
+                'gambar_gunung' : picture_name,
+                'link_gmaps' : gmaps_receive,
+                'link_iframe' : iframe_receive,
+                'deskripsi_umum' : deskripsiUmum_receive,
+                'deskripsi_perlengkapan' : deskripsiPerlengkapan_receive,
+                'deskripsi_peringatan' : deskripsiPeringatan_receive,
+            }
+
+        else :
+            doc = {
+                'nama_gunung' : name_receive,
+                'provinsi_gunung' : provinsi_receive,
+                'ketinggian_gunung' : ketinggian_receive,
+                'link_gmaps' : gmaps_receive,
+                'link_iframe' : iframe_receive,
+                'deskripsi_umum' : deskripsiUmum_receive,
+                'deskripsi_perlengkapan' : deskripsiPerlengkapan_receive,
+                'deskripsi_peringatan' : deskripsiPeringatan_receive,
+            }
+        db.gunung.update_one({'_id' : id_gunung},{'$set': doc})
+        return jsonify({
+            'result' : 'success',
+            'msg' : 'Data berhasil diedit'
+        })
+    except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
+        return redirect(url_for('home'))
+    
+@app.route('/delete_gunung', methods=['POST'])  #UNTUK HALAMAN DELETE
+def delete_gunung():
+    token_receive = request.cookies.get(TOKEN_KEY)
+
+    try:
+        payload = jwt.decode(
+            token_receive,
+            SECRET_KEY,
+            algorithms=['HS256']
+        )
+
+        id_gunung = request.form.get('id_gunung_give')
+        id_gunung = ObjectId(id_gunung)
+        info_gunung = db.gunung.find_one({'_id' : id_gunung})
+        gambar_gunung = info_gunung['gambar_gunung']
+        if gambar_gunung != "default.jpg":
+            os.remove(f'./static/gunung_pics/{gambar_gunung}') #hapus gambar lama di server biar ga jadi sampah
+        db.gunung.delete_one({'_id' : id_gunung})
+        id_gunung = str(id_gunung)  #hapus likes dan komen pada gunungnya juga di database
+        db.likes.delete_many({'id_gunung': id_gunung})
+        db.komentar.delete_many({'id_gunung': id_gunung})
+        return jsonify({ 'result' : 'success' , 'msg' : 'Data gunung berhasil dihapus'})
+
+    except(jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
+        return redirect(url_for('home'))
+
+
+@app.route('/detail/<id_gunung>', methods=['GET']) #UNTUK HALAMAN DETAIL, id gunung dibawa dengan dinamic route
+def detail_gunung(id_gunung):
+    token_receive = request.cookies.get(TOKEN_KEY)
+
+    try:
+        payload = jwt.decode(
+            token_receive,
+            SECRET_KEY,
+            algorithms=['HS256']
+        )
+        user_info = db.users.find_one({'useremail' : payload.get('useremail')})
+        id_gunung = ObjectId(id_gunung)
+        info_gunung = db.gunung.find_one({'_id' : id_gunung})
+        id_gunung = str(id_gunung)
+        komentar_gunung = list(db.komentar.find({'id_gunung' : id_gunung}).sort('tanggal', -1).limit(10))
+        for komentar in komentar_gunung:
+            komentar['tanggal'] = komentar['tanggal'].split('-')[0]
+        jumlah_komentar = len(komentar_gunung)
+        
+        # db.likes.insert_one({
+        #     'id_gunung' : id_gunung,
+        #     'useremail' : payload.get('useremail')            
+        # })
+        like =bool(db.likes.find_one({
+            'id_gunung' : id_gunung,
+            'useremail' : payload.get('useremail')            
+        }))
+        like= str(like)
+        return render_template('detail.html', 
+                               info_gunung=info_gunung, 
+                               komentar_gunung=komentar_gunung, 
+                               jumlah_komentar=jumlah_komentar, 
+                               like=like)
+
+    except(jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
+        return redirect(url_for('home'))
+
+@app.route('/komentar', methods=['POST'])  #UNTUK HALAMAN DETAIL
+def tambah_komentar():
+    token_receive = request.cookies.get(TOKEN_KEY)
+
+    try:
+        payload = jwt.decode(
+            token_receive,
+            SECRET_KEY,
+            algorithms=['HS256']
+        )
+        user_info = db.users.find_one({'useremail' : payload.get('useremail')})
+
+        id_gunung = request.form.get('id_gunung_give')
+        useremail = user_info['useremail']
+        username = user_info['username']
+        komentar_receive = request.form.get('komentar_give')
+
+        doc = {
+            'id_gunung' : id_gunung,
+            'useremail' : useremail,
+            'username' : username,
+            'komentar': komentar_receive,
+            'tanggal' : datetime.now().strftime('%d/%m/%Y-%H:%M:%S')
+        }
+        db.komentar.insert_one(doc)
+        return jsonify({ 'result' : 'success' , 'msg' : 'Berhasil menambahkan komentar'})
+
+    except(jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
+        return redirect(url_for('home'))
+
+
+@app.route('/update_like', methods=['POST'])   #UNTUK HALAMAN DETAIL
 def update_like():
     token_receive = request.cookies.get(TOKEN_KEY)
     try:
@@ -274,49 +465,32 @@ def update_like():
             SECRET_KEY,
             algorithms=['HS256']
         )
-        user_info = db.users.find_one({'username' : payload.get('id')})
-        post_id_receive = request.form.get('post_id_give')
-        type_receive = request.form.get('type_give')
+        user_info = db.users.find_one({'useremail' : payload.get('useremail')})
+        id_gunung = request.form.get('id_gunung_give')
         action_receive = request.form.get('action_give')
         doc = {
-            'post_id' : post_id_receive,
-            'username' : user_info.get('username'),
-            'type' : type_receive
+            'id_gunung' : id_gunung,
+            'useremail' : user_info.get('useremail')
         }
         if action_receive == 'like' :
             db.likes.insert_one(doc)
         else : db.likes.delete_one(doc)
 
-        count = db.likes.count_documents({
-            'post_id' : post_id_receive,
-            'type' : type_receive
-        })
         return jsonify({
             'result' : 'success',
             'msg' : 'Updated!',
-            'count' : count
         })
     except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
         return redirect(url_for('home'))
 
-@app.route('/about', methods=['GET'])
-def about():
-    return render_template('about.html')
+def replace_characters(text):
+    text = text.replace('\n', '\\n')
     
+    text = text.replace('\r', '\\r')
 
-@app.route('/secret', methods=['GET'])
-def secret():
-    token_receive = request.cookies.get(TOKEN_KEY)
-    try:
-        payload = jwt.decode(
-            token_receive,
-            SECRET_KEY,
-            algorithms=['HS256']
-        )
-        user_info = db.users.find_one({'username' : payload.get('id')})
-        return render_template('secret.html', user_info = user_info)
-    except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
-        return redirect(url_for('home'))
+    text = text.replace('\t', '\\t')
+
+    return text
 
 if __name__ == '__main__':
     app.run('0.0.0.0', port=5000, debug=True)
