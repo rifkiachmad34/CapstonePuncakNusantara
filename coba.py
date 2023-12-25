@@ -74,14 +74,14 @@ db = client[DB_NAME]
 
 
 
-# pw_hash = hashlib.sha256("puncak123".encode("utf-8")).hexdigest()
-# doc = {
-#         "useremail" : "arifdwiprasetya14@gmail.com",
-#         "username"  : "Arif Dwi Prasetya",
-#         "password"  : pw_hash,
-#         "role"      : "admin"
-#     }
-# db.users.insert_one(doc)
+pw_hash = hashlib.sha256("puncak123".encode("utf-8")).hexdigest()
+doc = {
+        "useremail" : "m.randyaranda@gmail.com",
+        "username"  : "Muhamad Randy Aranda",
+        "password"  : pw_hash,
+        "role"      : "admin"
+    }
+db.users.insert_one(doc)
 
 # my_list = [
 #     {"nama": "John", "umur": 20},
@@ -124,9 +124,9 @@ db = client[DB_NAME]
 # db.likes.insert_one(doc)
 
 
-query_result = bool(db.likes.find_one({
-    'id_gunung' : "657a60c7ad94931ea9d005d0",
-    'useremail' : "arifdwiprasetya@gmail.com",
-    }))
+# query_result = bool(db.likes.find_one({
+#     'id_gunung' : "657a60c7ad94931ea9d005d0",
+#     'useremail' : "arifdwiprasetya@gmail.com",
+#     }))
 
-print(query_result)
+# print(query_result)

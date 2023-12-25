@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='icon.png') }}" type="image/x-ico">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Puncak Nusantara</title>
@@ -20,6 +21,13 @@
     <!-- Link font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    
+    <!-- Contoh referensi Summernote -->
+    <link rel="stylesheet" href="../static/summernote/summernote-lite.css">
+    <script src="../static/summernote/summernote-lite.js"></script>
+    <script src="../static/summernote/summernote-lite.js.map"></script>
+
     <title>Puncak Nusantara</title>
     <style>
         body {
@@ -262,32 +270,11 @@
                                     <input type="text" class="form-control" id="nama-gunung"
                                         placeholder="Input some values" value="{{info_gunung.nama_gunung}}">
                                 </div>
-                                <div class="mb-4">
-                                    <label for="gambar-gunung" class="form-label">Gambar Gunung</label>
-                                    <input class="form-control form-control" id="gambar-gunung" type="file">
-                                </div>
-                                <div class="mb-4">
-                                    <label for="link-gmaps" class="form-label">Link GMaps</label>
-                                    <input type="text" class="form-control" id="link-gmaps"
-                                        placeholder="Input some values" value="{{info_gunung.link_gmaps}}">
-                                </div>
                                 <div class="mb-3">
-                                    <label for="link-iframe" class="form-label">Link Iframe Gmaps</label>
-                                    <input type="text" class="form-control" id="link-iframe"
-                                        placeholder="Input some values" value="{{info_gunung.link_iframe}}">
+                                    <label for="deskripsi-umum" class="form-label">Deskripsi Tempat</label>
+                                    <textarea class="my-desc-textarea" id="deskripsi-umum" rows="3"
+                                        placeholder="Input some values">{{info_gunung.deskripsi_umum}}</textarea>
                                 </div>
-                                <!-- <label for="basic-url" class="form-label">Link GMaps</label>
-                                <div class="input-group mb-3">
-                                    <span class="input-group-text" id="basic-addon3">https://www.google.com/maps</span>
-                                    <input type="text" class="form-control" id="basic-url"
-                                        aria-describedby="basic-addon3">
-                                </div>
-                                <label for="basic-url" class="form-label">Link Iframe</label>
-                                <div class="input-group mb-3">
-                                    <span class="input-group-text" id="basic-addon3">https://example.com/users/</span>
-                                    <input type="text" class="form-control" id="basic-url"
-                                        aria-describedby="basic-addon3">
-                                </div> -->
                                 <div class="row g-3 w-100">
                                     <div class="col-sm">
                                         <div class="mb-4">
@@ -305,25 +292,36 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="col-6">
+                                <div class="mb-4">
+                                    <label for="link-gmaps" class="form-label">Link GMaps</label>
+                                    <input type="text" class="form-control" id="link-gmaps"
+                                        placeholder="Input some values" value="{{info_gunung.link_gmaps}}">
+                                </div>
                                 <div class="mb-3">
-                                    <label for="deskripsi-umum" class="form-label">Deskripsi Tempat</label>
-                                    <textarea class="form-control" id="deskripsi-umum" rows="3"
-                                        placeholder="Input some values">{{info_gunung.deskripsi_umum}}</textarea>
+                                    <label for="link-iframe" class="form-label">Link Iframe Gmaps</label>
+                                    <input type="text" class="form-control" id="link-iframe"
+                                        placeholder="Input some values" value="{{info_gunung.link_iframe}}">
+                                </div>
+                            </div>
+                            
+
+                            <div class="col-6">
+                                <div class="mb-4">
+                                    <label for="gambar-gunung" class="form-label">Gambar Gunung</label>
+                                    <input class="form-control form-control" id="gambar-gunung" type="file">
                                 </div>
                                 <div class="mb-3">
                                     <label for="deskripsi-perlengkapan" class="form-label">Perlengkapan yang harus
                                         dibawa</label>
-                                    <textarea class="form-control" id="deskripsi-perlengkapan" rows="3">{{info_gunung.deskripsi_perlengkapan}}</textarea>
+                                    <textarea class="my-textarea" id="deskripsi-perlengkapan" rows="3">{{info_gunung.deskripsi_perlengkapan}}</textarea>
                                 </div>
                                 <div class="mb-3">
                                     <label for="deskripsi-peringatan" class="form-label">Peringatan dan
                                         Larangan</label>
-                                    <textarea class="form-control" id="deskripsi-peringatan" rows="3">{{info_gunung.deskripsi_peringatan}}</textarea>
+                                    <textarea class="my-textarea" id="deskripsi-peringatan" rows="3">{{info_gunung.deskripsi_peringatan}}</textarea>
                                 </div>
                             </div>
-                            <div class="d-grid gap-2 d-md-flex justify-content-md-end" style="height: 50px;">
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-5" style="height: 50px;">
                                 <button onclick="simpan()" class="btn btn-success me-md-2" type="button"
                                     style="width: 100%;">Simpan</button>
                                 <button onclick="window.location.href='/'" class="btn btn-secondary"
@@ -356,6 +354,21 @@
             © Develop by StudentX | Part of LearningX
         </span>
     </footer>
+
+    <script>
+        $(document).ready(function () {
+            // Panggil Summernote menggunakan class my-textarea
+            $('.my-textarea').summernote({
+                height: 150, // Sesuaikan dengan kebutuhan tinggi yang diinginkan
+                // Opsi Summernote lainnya
+            });
+
+            $('.my-desc-textarea').summernote({
+                height: 150, // Sesuaikan dengan kebutuhan tinggi yang diinginkan
+                // Opsi Summernote lainnya
+            });
+        });
+    </script>
 
 </body>
 
